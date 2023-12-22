@@ -1,0 +1,23 @@
+{
+  "name": "bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "bot.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "type": "module",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@genezio/types": "^0.1.9",
+    "@upstash/qstash": "^2.3.0",
+    "axios": "^1.6.2",
+    "discord-interactions": "^3.4.0",
+    "tweetnacl": "~1.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.9.4"
+  }
+}

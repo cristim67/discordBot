@@ -1,0 +1,7 @@
+name: discord-bot
+region: eu-central-1
+language: ts
+cloudProvider: genezio
+scripts:
+  preBackendDeploy: npm install
+packageManager: npm
