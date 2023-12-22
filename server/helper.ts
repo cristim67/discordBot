@@ -20,10 +20,11 @@ export class GenezioQStashQueue {
       'Content-Type': 'application/json',
     };
 
-    axios
-      .post(webhook, payload, { headers: headers })
-      .catch((error) => {
-        throw error;
-      });
+    try {
+      await axios.post(webhook, payload, { headers });
+    } catch (error: any) {
+      console.error('Error posting data:', error.response?.data || error.message);
+      throw new Error('Failed to post data to webhook.');
+    }
   }
 }

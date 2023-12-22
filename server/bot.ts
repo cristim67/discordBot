@@ -5,12 +5,40 @@ import { InteractionResponseType, InteractionType } from 'discord-interactions';
 import axios from 'axios';
 import { GenezioQStashQueue } from './helper';
 
-export type DiscordBotCommand = {
+export type DiscordBotCommandRequest = {
   name: string;
   description: string;
   type: ApplicationCommandOptionType;
   options: DiscordBotOptions[];
 };
+
+export type DiscordBotCommandResponse = {
+  id: string;
+  application_id: string;
+  version: string;
+  default_member_permissions: null | any;
+  type: number;
+  name: string;
+  description: string;
+  dm_permission: boolean;
+  contexts: null | any;
+  integration_types: number[];
+  options: DiscordBotOptions[];
+  nsfw: boolean;
+};
+
+export type DiscordBotOptions = {
+  name: string;
+  description: string;
+  type: ApplicationCommandOptionType;
+  required: boolean;
+};
+
+export type DiscordBotCommandError = {
+  message: string;
+  code: number;
+  errors: any[];
+}
 
 export enum ApplicationCommandOptionType {
 SUB_COMMAND = 1,
@@ -25,14 +53,6 @@ MENTIONABLE = 9,
 NUMBER = 10,
 ATTACHMENT = 11,
 }
-
-export type DiscordBotOptions = {
-  name: string;
-  description: string;
-  type: ApplicationCommandOptionType;
-  required: boolean;
-};
-
 
 @GenezioDeploy()
 export class DiscordBotService {
@@ -83,11 +103,16 @@ export class DiscordBotService {
             // Publish a task to the queue
             console.log('Pushing task to the queue');
             const genezioQueue = new GenezioQStashQueue(process.env.QSTASH_TOKEN!);
-            genezioQueue.push(process.env.QUEUE_WEBHOOK_URL!, {
-              discord_message_token: request.body.token,
-              name: name,
-            });
-            console.log('Task pushed to the queue');
+            try {
+
+              genezioQueue.push(process.env.QUEUE_WEBHOOK_URL!, {
+                discord_message_token: request.body.token,
+                name: name,
+              });
+              console.log('Task pushed to the queue');
+            } catch (error: any) {
+              console.error('Error:', error.message);
+            }
 
             // Return a deferred response to discord
             return {
@@ -122,7 +147,7 @@ export class DiscordBotService {
     return response;
   }
 
-  async getBotCommands(): Promise<DiscordBotCommand[]> {
+  async getBotCommands(): Promise<DiscordBotCommandResponse[]> {
     const url =
       'https://discord.com/api/v10/applications/' +
       process.env.DISCORD_APPLICATION_ID +
@@ -132,11 +157,34 @@ export class DiscordBotService {
       Authorization: 'Bot ' + process.env.DISCORD_TOKEN,
     };
 
-    const response = await axios.get(url, { headers: headers });
-    return response.data;
+    try {
+      const response = await axios.get(url, { headers: headers });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching bot commands:', error);
+      throw error;
+    }
   }
 
-  async registerBotCommands(command: DiscordBotCommand): Promise<boolean> {
+  async registerHelloCommand(): Promise<boolean | DiscordBotCommandError> {
+    const command: DiscordBotCommandRequest = {
+      name: 'hello',
+      description: 'Say hello to someone',
+      type: ApplicationCommandOptionType.SUB_COMMAND,
+      options: [
+        {
+          name: 'name',
+          description: 'The name of the person to say hello to',
+          type: ApplicationCommandOptionType.STRING,
+          required: true,
+        },
+      ],
+    };
+
+    return await this.registerBotCommands(command);
+  }
+
+  async registerBotCommands(command: DiscordBotCommandRequest): Promise<boolean | DiscordBotCommandError> {
     const url =
       'https://discord.com/api/v10/applications/' +
       process.env.DISCORD_APPLICATION_ID +
@@ -148,17 +196,30 @@ export class DiscordBotService {
     };
 
     const data = JSON.stringify(command);
-    axios
-      .post(url, data, { headers: headers })
-      .then((res) => {
-        console.log(res.data);
-      })
-      .catch((error) => {
-        console.error(error);
-        return false;
-      });
 
-    return true;
+    try {
+      const res = await axios.post(url, data, { headers: headers });
+      console.log(res.data);
+
+      return true;
+    } catch (error: any) {
+      console.error(error.response.data);
+      return error.response.data as DiscordBotCommandError;
+    }
+  }
+
+  unregisterAllCommands(): Promise<boolean> {
+    return new Promise<boolean>(async (resolve) => {
+      const commands = await this.getBotCommands();
+      let success = true;
+      for (const command of commands) {
+        const result = await this.unRegisterBotCommands(command.id);
+        if (!result) {
+          success = false;
+        }
+      }
+      resolve(success);
+    });
   }
 
   async unRegisterBotCommands(commandId: string): Promise<boolean> {
@@ -172,16 +233,14 @@ export class DiscordBotService {
       Authorization: 'Bot ' + process.env.DISCORD_TOKEN,
     };
 
-    axios
-      .delete(url, { headers: headers })
-      .then((res) => {
-        console.log(res.data);
-      })
-      .catch((error) => {
-        console.error(error);
-        return false;
-      });
+    try {
+      const response = await axios.delete(url, { headers });
+      console.log(response.data);
+      return true;
+    } catch (error: any) {
+      console.error('Error deleting resource:', error.response?.data || error.message);
+      return false;
+    }
 
-    return true;
   }
 }
